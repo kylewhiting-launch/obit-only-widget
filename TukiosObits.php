@@ -19,12 +19,12 @@ Text Domain: tukios.com
 */
 
 add_action('init', 'add_get_val');
-function add_get_val() // Location ID chosen from the listings dropdown
+function add_get_val() 
 {
     global $wp;
     $wp->add_query_var('q');
     $wp->add_query_var('pg');
-    $wp->add_query_val('loc');
+    $wp->add_query_var('loc'); // Location ID chosen from the listings dropdown
 }
 
 /**
@@ -83,7 +83,7 @@ function tukios_parse_locations_attr($value)
         $label = isset($parts[1]) ? trim($parts[1]) : $id;
         $locations[$id] = $label;
     }
-    return $locations
+    return $locations;
 }
 
 /**
@@ -471,7 +471,8 @@ function get_pagination_html($paginator, $selected_loc = '')
     // Carry the selected location through page links so paging doesn't reset the filter
     if ($selected_loc !== '') {
         $query_string .= '&loc=' . urlencode($selected_loc);
-    
+    }
+
     $html = '<nav class="tukios_paginiation_container twp-border-t twp-border-gray-200 twp-px-4 twp-flex twp-items-center twp-justify-between twp-sm:px-0 twp-my-8">
         <div class="tukios_pagination_previous_wrapper twp--mt-px twp-w-0 twp-flex-1 twp-flex">
             <a href="' . $paginator->prev_page_url . $query_string . '" class="tukios_pagination_previous twp-border-t-2 twp-border-transparent twp-pt-4 twp-pr-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">
@@ -508,7 +509,7 @@ function get_pagination_html($paginator, $selected_loc = '')
     return $html;
 }
 
-function get_search_bar_html()
+function get_search_bar_html($locations = [], $selected_loc = '')
 {
     $options = get_option('tukios_plugin_settings');
 
