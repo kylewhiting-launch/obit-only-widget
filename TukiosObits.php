@@ -8,7 +8,7 @@ Plugin URI: https://tukios.com
 
 Description: Plugin to help display obituaries on your website.
 
-Version: 2.3.8
+Version: 2.3.9
 
 Author: Tukios Websites    
 
@@ -19,11 +19,12 @@ Text Domain: tukios.com
 */
 
 add_action('init', 'add_get_val');
-function add_get_val()
+function add_get_val() // Location ID chosen from the listings dropdown
 {
     global $wp;
     $wp->add_query_var('q');
     $wp->add_query_var('pg');
+    $wp->add_query_val('loc');
 }
 
 /**
@@ -54,6 +55,37 @@ function create_slider_shortcode($atts, $content = null)
     return get_slider_html($obituaries);
 }
 
+
+/**
+ * Parse the listings shortcode's "locations" attribute into an [id => label] array.
+ *
+ * Expected format: "951378:Dundalk,951377:Towson"
+ *  - Pairs are comma-separated; ID and label are split on the first colon only,
+ *    so labels may contain colons.
+ *  - A bare ID with no label ("951378") uses the ID as its label.
+ *  - Empty entries are skipped.
+ *
+ * Returns an empty array when the attribute is missing, which disables the dropdown.
+ */
+
+function tukios_parse_locations_attr($value)
+{
+    $locations = [];
+    if (empty($value)) {
+        return $locations;
+    }
+    foreach (explode(',', $value) as $pair) {
+        $parts = explode(':', $pair, 2);
+        $id = trim($parts[0]);
+        if ($id === '') {
+            continue;
+        }
+        $label = isset($parts[1]) ? trim($parts[1]) : $id;
+        $locations[$id] = $label;
+    }
+    return $locations
+}
+
 /**
  * 
  *  LISTINGS PAGE SHORTCODE
@@ -77,7 +109,21 @@ function create_obit_page_shortcode($atts, $content = null)
     $api_key = esc_attr($options['api_key']);
     $api_version = esc_attr($options['api_version']);
     $environment = esc_attr($options['environment']);
+
+    // Location dropdown support.
+    // A visitor's ?loc= value is only honored if it matches an ID listed in the
+    // shortcode's "locations" attribute; anything else is ignored so the URL can't
+    // be used to request arbitrary locations. When no valid choice is made, the
+    // fixed location_id attribute (or all locations, if unset) applies as before.
+
     $location = $atts['location_id'] ?? null;
+    $locations = tukios_parse_locations_attr($atts['locations'] ?? '');
+    $selected_loc = sanitize_text_field(wp_unslash(get_query_var('loc')));
+    if ($selected_loc !== '' && isset($locations[$selected_loc])) {
+        $location = $selected_loc;
+    } else {
+        $selected_loc = '';
+    }
 
     $data = [
         'organization_uuid' => esc_attr($options['organization_id']),
@@ -95,7 +141,8 @@ function create_obit_page_shortcode($atts, $content = null)
 
     $paginator = json_decode($response);
 
-    return get_listings_html($paginator);
+    // Pass dropdown options and the current selection through to the search bar and pagination  
+    return get_listings_html($paginator, $locations, $selected_loc);
 }
 
 
@@ -391,7 +438,12 @@ function get_slider_html($obituaries)
     return $html;
 }
 
-function get_listings_html($paginator)
+/**
+ * $locations and $selected_loc are optional so existing callers keep working;
+ * when omitted, the search bar renders without a location dropdown.
+ */
+
+function get_listings_html($paginator, $locations = [], $selected_loc = '')
 {
     wp_enqueue_style('twp', plugins_url('twp.css',  __FILE__));
 
@@ -399,23 +451,27 @@ function get_listings_html($paginator)
 
     $sq = wp_unslash(get_query_var('q'));
 
-    $html .= get_search_bar_html();
+    $html .= get_search_bar_html($locations, $selected_loc);
 
     foreach ($paginator->data as $obituary) {
         $html .= get_obituary_listing_template_html($obituary);
     }
 
-    $html .= get_pagination_html($paginator);
+    $html .= get_pagination_html($paginator, $selected_loc);
 
     $html .= '</div>'; // Wrapper EOF
     return $html;
 }
 
-function get_pagination_html($paginator)
+function get_pagination_html($paginator, $selected_loc = '')
 {
     $sq = wp_unslash(get_query_var('q'));
     $query_string = !empty($sq) ? '&q=' . urlencode($sq) : '';
 
+    // Carry the selected location through page links so paging doesn't reset the filter
+    if ($selected_loc !== '') {
+        $query_string .= '&loc=' . urlencode($selected_loc);
+    
     $html = '<nav class="tukios_paginiation_container twp-border-t twp-border-gray-200 twp-px-4 twp-flex twp-items-center twp-justify-between twp-sm:px-0 twp-my-8">
         <div class="tukios_pagination_previous_wrapper twp--mt-px twp-w-0 twp-flex-1 twp-flex">
             <a href="' . $paginator->prev_page_url . $query_string . '" class="tukios_pagination_previous twp-border-t-2 twp-border-transparent twp-pt-4 twp-pr-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">
@@ -464,10 +520,25 @@ function get_search_bar_html()
 
     $sq = wp_unslash(get_query_var('q'));
 
+    // Build the location dropdown only when locations were supplied.
+    // The slider's search bar calls this function with no arguments and gets no dropdown.
+    // onchange submits immediately so visitors don't need to press Search after picking.
+    $location_select = '';
+    if (!empty($locations)) {
+        $location_select = '<select name="loc" class="tukios_location_select twp-border-0 twp-border-blue-800 twp-border-b-2 twp-mr-4 twp-p-4 twp-bg-white" aria-label="Filter by location" onchange="this.form.submit()">';
+        $location_select .= '<option value="">All Locations</option>';
+        foreach ($locations as $id => $label) {
+            $location_select .= '<option value="' . esc_attr($id) . '"'
+                . selected($selected_loc, (string) $id, false) . '>'
+                . esc_html($label) . '</option>';
+        }
+        $location_select .= '</select>';
+    }
     return '<div class="tukios_search_container twp-mb-4">
         <form class="tukios_search_form twp-rounded-xl twp-shadow-lg twp-p-6 twp-flex twp-bg-white twp-items-center" action="' . $action . '">
             <span class="tukios_search_title twp-font-serif twp-text-xl">Search Obituaries</span>
-            <input type="text" name="q" class="tukios_search_input twp-border-0 twp-border-blue-800 twp-border-b-2 twp-flex-1 twp-mx-8 twp-p-4" placeholder="Find a loved one..." value="' . $sq . '">
+            <input type="text" name="q" class="tukios_search_input twp-border-0 twp-border-blue-800 twp-border-b-2 twp-flex-1 twp-mx-8 twp-p-4" placeholder="Find a loved one..." value="' . esc_attr($sq) . '"> 
+            ' . $location_select . '
             <button type="submit" class="tukios_search_button twp-bg-blue-800 twp-rounded twp-text-white twp-px-8 twp-py-4">Search</button>
         </form>
     </div>';
