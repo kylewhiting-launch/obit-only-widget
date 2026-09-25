@@ -463,6 +463,17 @@ function get_listings_html($paginator, $locations = [], $selected_loc = '')
     return $html;
 }
 
+/**
+ * Append the search/location query string to a pagination URL.
+ * The API returns null for links that don't exist (previous on page 1,
+ * next on the last page, "..." separators). Appending to null would produce
+ * a relative href like "&loc=123", which the browser resolves to a 404.
+ */
+function tukios_pagination_href($url, $query_string)
+{
+    return empty($url) ? '' : $url . $query_string;
+}
+
 function get_pagination_html($paginator, $selected_loc = '')
 {
     $sq = wp_unslash(get_query_var('q'));
@@ -475,7 +486,7 @@ function get_pagination_html($paginator, $selected_loc = '')
 
     $html = '<nav class="tukios_paginiation_container twp-border-t twp-border-gray-200 twp-px-4 twp-flex twp-items-center twp-justify-between twp-sm:px-0 twp-my-8">
         <div class="tukios_pagination_previous_wrapper twp--mt-px twp-w-0 twp-flex-1 twp-flex">
-            <a href="' . $paginator->prev_page_url . $query_string . '" class="tukios_pagination_previous twp-border-t-2 twp-border-transparent twp-pt-4 twp-pr-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">
+            <a href="' . tukios_pagination_href($paginator->prev_page_url . $query_string) . '" class="tukios_pagination_previous twp-border-t-2 twp-border-transparent twp-pt-4 twp-pr-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tukios_pagination_svg twp-mr-3 twp-h-5 twp-w-5 twp-text-gray-400">
                     <path fill-rule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"></path>
                 </svg>
@@ -490,15 +501,15 @@ function get_pagination_html($paginator, $selected_loc = '')
 
     foreach ($links as $link) {
         if ($link->active) {
-            $html .= '<a href="' . $link->url . $query_string . '" class="tukios_pagination_link twp-border-blue-500 twp-text-blue-600 twp-border-t-2 twp-pt-4 twp-px-4 twp-inline-flex twp-items-center twp-text-sm twp-font-medium">' . $link->label . '</a>';
+            $html .= '<a href="' . tukios_pagination_href($link->url . $query_string) . '" class="tukios_pagination_link twp-border-blue-500 twp-text-blue-600 twp-border-t-2 twp-pt-4 twp-px-4 twp-inline-flex twp-items-center twp-text-sm twp-font-medium">' . $link->label . '</a>';
         } else {
-            $html .= '<a href="' . $link->url . $query_string . '" class="tukios_pagination_link twp-border-transparent twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300 twp-border-t-2 twp-pt-4 twp-px-4 twp-inline-flex twp-items-center twp-text-sm twp-font-medium">' . $link->label . '</a>';
+            $html .= '<a href="' . tukios_pagination_href($link->url . $query_string) . '" class="tukios_pagination_link twp-border-transparent twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300 twp-border-t-2 twp-pt-4 twp-px-4 twp-inline-flex twp-items-center twp-text-sm twp-font-medium">' . $link->label . '</a>';
         }
     }
 
     $html .= '</div>
         <div class="tukios_pagination_next_wrapper twp--mt-px twp-w-0 twp-flex-1 twp-flex twp-justify-end">
-            <a href="' . $paginator->next_page_url . $query_string . '" class="tukios_pagination_next twp-border-t-2 twp-border-transparent twp-pt-4 twp-pl-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">Next
+            <a href="' . tukios_pagination_href($paginator->next_page_url . $query_string) . '" class="tukios_pagination_next twp-border-t-2 twp-border-transparent twp-pt-4 twp-pl-1 twp-inline-flex twp-items-center twp-text-sm twp-font-medium twp-text-gray-500 hover:twp-text-gray-700 hover:twp-border-gray-300">Next
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="twp-ml-3 twp-h-5 twp-w-5 twp-text-gray-400">
                     <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
                 </svg>
